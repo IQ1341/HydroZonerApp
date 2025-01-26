@@ -14,19 +14,29 @@ class MqttClient {
   setOnMessageReceived(handler) {
     this.onMessageReceived = handler;
   }
+
+  // Make the connect method return a Promise
   connect() {
     if (this.isConnected) {
-      return;
+      return Promise.resolve(); // Resolve immediately if already connected
     }
-    
-    const options = {
-      onSuccess: this.onConnect.bind(this),
-      onFailure: this.onFailure.bind(this),
-      userName: '',
-      password: '',
-      useSSL: false
-    };
-    this.client.connect(options);
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        onSuccess: () => {
+          this.onConnect();
+          resolve(); // Resolve the Promise on successful connection
+        },
+        onFailure: (error) => {
+          this.onFailure(error);
+          reject(error); // Reject the Promise on failure
+        },
+        userName: '',
+        password: '',
+        useSSL: false,
+      };
+      this.client.connect(options);
+    });
   }
 
   onConnect() {
