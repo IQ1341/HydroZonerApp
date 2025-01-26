@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
-import MqttClient from '../services/MqttClient'; // Assuming MqttClient is in the same directory
+import MqttClient from '../services/MqttClient';
 
-// Define types for state
 interface RelayStatus {
   tank1: boolean;
   tank2: boolean;
@@ -18,55 +17,58 @@ const MonitoringScreen: React.FC = () => {
     ozone: false,
     tank3: false,
   });
+
   const [otomasiSterilisasi, setOtomasiSterilisasi] = useState<boolean>(false);
   const [otomasiRefill, setOtomasiRefill] = useState<boolean>(false);
-  const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(10);
-  const [durasiUV, setDurasiUV] = useState<number>(20);
-  const [durasiPostUV, setDurasiPostUV] = useState<number>(15);
 
-  // Initialize MQTT client
+  const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(5);
+  const [durasiPostUV, setDurasiPostUV] = useState<number>(1);
+
+  const [timer, setTimer] = useState<number | null>(null);
+
   useEffect(() => {
     MqttClient.connect();
 
-    // Set the handler for receiving messages
+    // Handle MQTT message reception
     MqttClient.setOnMessageReceived((topic: string, message: string) => {
       switch (topic) {
-        case 'kontrol/relayStatus':
+        case 'status/relay':
           const relayState = JSON.parse(message);
+          // Update relay status based on received data
           setRelayStatus({
             tank1: relayState.RELAY1,
-            tank2: relayState.RELAY2,
-            ozone: relayState.RELAY3 || relayState.RELAY4, // Ozone and UV could be controlled by RELAY3 and RELAY4
-            tank3: relayState.RELAY5,
+            tank2: relayState.RELAY2 || relayState.RELAY4,
+            ozone: relayState.RELAY3 || relayState.RELAY4,
+            tank3: relayState.RELAY5 || relayState.RELAY6,
           });
           break;
-        case 'kontrol/otomasiSterilisasi':
+
+        case 'status/otomasiSterilisasi':
           setOtomasiSterilisasi(message === 'true');
           break;
-        case 'kontrol/otomasiRefill':
+        case 'status/otomasiRefill':
           setOtomasiRefill(message === 'true');
           break;
-        case 'kontrol/durasiSterilisasi':
+
+        case 'status/durasiSterilisasi':
           setDurasiSterilisasi(parseInt(message, 10));
           break;
-        case 'kontrol/durasiUV':
-          setDurasiUV(parseInt(message, 10));
-          break;
-        case 'kontrol/durasiPostUV':
+
+        case 'status/durasiPostUV':
           setDurasiPostUV(parseInt(message, 10));
           break;
+
         default:
           break;
       }
     });
 
-    // Subscribe to relevant topics
-    MqttClient.client.subscribe('kontrol/relayStatus');
-    MqttClient.client.subscribe('kontrol/otomasiSterilisasi');
-    MqttClient.client.subscribe('kontrol/otomasiRefill');
-    MqttClient.client.subscribe('kontrol/durasiSterilisasi');
-    MqttClient.client.subscribe('kontrol/durasiUV');
-    MqttClient.client.subscribe('kontrol/durasiPostUV');
+    // Subscribe to relevant MQTT topics
+    MqttClient.client.subscribe('status/relay');
+    MqttClient.client.subscribe('status/otomasiSterilisasi');
+    MqttClient.client.subscribe('status/otomasiRefill');
+    MqttClient.client.subscribe('status/durasiSterilisasi');
+    MqttClient.client.subscribe('status/durasiPostUV');
 
     return () => {
       MqttClient.disconnect();
@@ -76,99 +78,127 @@ const MonitoringScreen: React.FC = () => {
   return (
     <View style={styles.mainContainer}>
       <View style={styles.container}>
-        {/* IP Address */}
+        {/* Alamat IP */}
         <View style={styles.ipContainer}>
           <Text style={styles.ipText}>Alamat IP Alat</Text>
           <Text style={styles.ipAddress}>192.168.100.1:8080</Text>
         </View>
-        {/* Percentage */}
         <Text style={styles.percentage}>100%</Text>
 
-        {/* Buttons */}
+        {/* Tombol Relay */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[
               styles.button,
               relayStatus.tank1 ? styles.activeButton : {},
-            ]}
-          >
+            ]}>
             <Icon
               name="glass-water-droplet"
               size={24}
               color={relayStatus.tank1 ? '#FFFFFF' : '#181B56'}
             />
-            <Text style={styles.buttonLabel}>Tank 1</Text>
+            <Text
+              style={[
+                styles.buttonLabel,
+                {color: relayStatus.tank1 ? '#FFFFFF' : '#181B56'},
+              ]}>
+              Tank 1
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.button,
               relayStatus.tank2 ? styles.activeButton : {},
-            ]}
-          >
+            ]}>
             <Icon
               name="glass-water-droplet"
               size={24}
               color={relayStatus.tank2 ? '#FFFFFF' : '#181B56'}
             />
-            <Text style={styles.buttonLabel}>Tank 2</Text>
+            <Text
+              style={[
+                styles.buttonLabel,
+                {color: relayStatus.tank2 ? '#FFFFFF' : '#181B56'},
+              ]}>
+              Tank 2
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.button,
               relayStatus.ozone ? styles.activeButton : {},
-            ]}
-          >
+            ]}>
             <Icon
               name="soap"
               size={24}
               color={relayStatus.ozone ? '#FFFFFF' : '#181B56'}
             />
-            <Text style={styles.buttonLabel}>Ozone</Text>
+            <Text
+              style={[
+                styles.buttonLabel,
+                {color: relayStatus.ozone ? '#FFFFFF' : '#181B56'},
+              ]}>
+              Ozone
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.button,
               relayStatus.tank3 ? styles.activeButton : {},
-            ]}
-          >
+            ]}>
             <Icon
               name="glass-water-droplet"
               size={24}
               color={relayStatus.tank3 ? '#FFFFFF' : '#181B56'}
             />
-            <Text style={styles.buttonLabel}>Tank 3</Text>
+            <Text
+              style={[
+                styles.buttonLabel,
+                {color: relayStatus.tank3 ? '#FFFFFF' : '#181B56'},
+              ]}>
+              Tank 3
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Status */}
         <View style={styles.statusContainer}>
-          <Text style={styles.status}>Air Siap Pakai</Text>
+          <Text style={styles.status}>Air Siap Paka</Text>
         </View>
       </View>
-      {/* Sensor Values */}
+
+      {/* Sensor */}
       <View style={styles.sensorContainer}>
         <View style={styles.sensorBox}>
           <Text style={styles.sensorTitle}>pH Air</Text>
-          <Icon name="water" size={24} color="#181B56" style={styles.sensorIcon} />
-          <Text style={styles.sensorValue}>6.79</Text>
-        </View>
-        <View style={styles.sensorBox}>
-          <Text style={styles.sensorTitle}>Keruh Air</Text>
-          <Icon name="droplet" size={24} color="#181B56" style={styles.sensorIcon} />
-          <Text style={styles.sensorValue}>10 NTU</Text>
-        </View>
-        <View style={styles.sensorBox}>
-          <Text style={styles.sensorTitle}>Suhu Air</Text>
           <Icon
-            name="temperature-high"
+            name="water"
             size={24}
             color="#181B56"
             style={styles.sensorIcon}
           />
+          <Text style={styles.sensorValue}>6.79</Text>
+        </View>
+        <View style={styles.sensorBox}>
+          <Text style={styles.sensorTitle}>Keruh Air</Text>
+          <Icon
+            name="droplet"
+            size={24}
+            color="#181B56"
+            style={styles.sensorIcon}
+          />
+          <Text style={styles.sensorValue}>10 NTU</Text>
+        </View>
+        <View style={styles.sensorBox}>
+          <Text style={styles.sensorTitle}>Suhu Air</Text>
+          <Icon name="temperature-high" size={24} color="#181B56" />
           <Text style={styles.sensorValue}>23 °C</Text>
         </View>
       </View>
-      {/* Automation */}
+
+      {/* Otomasi */}
       <View style={styles.automationContainer}>
         <View style={styles.automationBox}>
           <Text style={styles.automationTitle}>Otomasi Sterilisasi</Text>
@@ -183,7 +213,8 @@ const MonitoringScreen: React.FC = () => {
           </Text>
         </View>
       </View>
-      {/* Duration */}
+
+      {/* Durasi */}
       <View style={styles.durationContainer}>
         <View style={styles.durationBox}>
           <Text style={styles.durationTitle}>Sterilisasi UV</Text>
@@ -246,6 +277,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 20,
     borderRadius: 20,
+    borderWidth: 0.5,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 5,
