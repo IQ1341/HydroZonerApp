@@ -22,7 +22,7 @@ const MonitoringScreen: React.FC = () => {
   const [otomasiRefill, setOtomasiRefill] = useState<boolean>(false);
 
   const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(5);
-  const [durasiPostUV, setDurasiPostUV] = useState<number>(1);
+  const [durasiPostUV, setDurasiPostUV] = useState<number>(5);
 
   const [timer, setTimer] = useState<number | null>(null);
 
