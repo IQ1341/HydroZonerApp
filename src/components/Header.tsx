@@ -30,11 +30,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: '#FFFFFF', // Warna background header
-    // elevation: 3, // Efek shadow untuk Android
-    // shadowColor: '#000', // Efek shadow untuk iOS
-    // shadowOffset: { width: 0, height: 2 },
-    // shadowOpacity: 0.1,
-    // shadowRadius: 4,
+   
   },
   logoContainer: {
     flexDirection: 'row',

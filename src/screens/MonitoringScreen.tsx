@@ -17,24 +17,44 @@ const MonitoringScreen: React.FC = () => {
     ozone: false,
     tank3: false,
   });
-
+  const [statusProses, setStatusProses] = useState<string>('Menunggu Proses');
   const [otomasiSterilisasi, setOtomasiSterilisasi] = useState<boolean>(false);
   const [otomasiRefill, setOtomasiRefill] = useState<boolean>(false);
+  const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(10);
+  const [durasiPostUV, setDurasiPostUV] = useState<number>(10);
 
-  const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(5);
-  const [durasiPostUV, setDurasiPostUV] = useState<number>(5);
-
-  const [timer, setTimer] = useState<number | null>(null);
+  // State untuk sensor
+  const [sensorData, setSensorData] = useState({
+    pH: 0,
+    kekeruhan: 0,
+    suhu: 0,
+  });
 
   useEffect(() => {
-    MqttClient.connect();
+    MqttClient.connect()
+      .then(() => {
+        // Subscribe ke topik MQTT
+        MqttClient.client.subscribe('status/relay');
+        MqttClient.client.subscribe('status/prosesSterilisasi');
+        MqttClient.client.subscribe('status/otomasiSterilisasi');
+        MqttClient.client.subscribe('status/otomasiRefill');
+        MqttClient.client.subscribe('status/durasiSterilisasi');
+        MqttClient.client.subscribe('status/durasiPostUV');
 
-    // Handle MQTT message reception
+        // Topik sensor
+        MqttClient.client.subscribe('sensor/pH');
+        MqttClient.client.subscribe('sensor/kekeruhan');
+        MqttClient.client.subscribe('sensor/suhu');
+      })
+      .catch((error) => {
+        console.error('MQTT Connection Error: ', error);
+      });
+
+    // Tangani pesan MQTT
     MqttClient.setOnMessageReceived((topic: string, message: string) => {
       switch (topic) {
         case 'status/relay':
           const relayState = JSON.parse(message);
-          // Update relay status based on received data
           setRelayStatus({
             tank1: relayState.RELAY1,
             tank2: relayState.RELAY2 || relayState.RELAY4,
@@ -42,6 +62,16 @@ const MonitoringScreen: React.FC = () => {
             tank3: relayState.RELAY5 || relayState.RELAY6,
           });
           break;
+
+          case 'status/prosesSterilisasi':
+      const processStatus = parseInt(message, 10);
+      console.log(`Parsed processStatus: ${processStatus}`);  // Log nilai yang sudah diparse
+      if (!isNaN(processStatus)) {
+        setStatusProses(`Proses Sterilisasi: ${processStatus}`);
+      } else {
+        setStatusProses('Proses Tidak Diketahui');
+      }
+      break;
 
         case 'status/otomasiSterilisasi':
           setOtomasiSterilisasi(message === 'true');
@@ -58,17 +88,21 @@ const MonitoringScreen: React.FC = () => {
           setDurasiPostUV(parseInt(message, 10));
           break;
 
+        // Data sensor
+        case 'sensor/pH':
+          setSensorData((prevData) => ({ ...prevData, pH: parseFloat(message) }));
+          break;
+        case 'sensor/kekeruhan':
+          setSensorData((prevData) => ({ ...prevData, kekeruhan: parseFloat(message) }));
+          break;
+        case 'sensor/suhu':
+          setSensorData((prevData) => ({ ...prevData, suhu: parseFloat(message) }));
+          break;
+
         default:
           break;
       }
     });
-
-    // Subscribe to relevant MQTT topics
-    MqttClient.client.subscribe('status/relay');
-    MqttClient.client.subscribe('status/otomasiSterilisasi');
-    MqttClient.client.subscribe('status/otomasiRefill');
-    MqttClient.client.subscribe('status/durasiSterilisasi');
-    MqttClient.client.subscribe('status/durasiPostUV');
 
     return () => {
       MqttClient.disconnect();
@@ -165,7 +199,7 @@ const MonitoringScreen: React.FC = () => {
         </View>
 
         <View style={styles.statusContainer}>
-          <Text style={styles.status}>Air Siap Paka</Text>
+          <Text style={styles.status}>{statusProses}</Text>
         </View>
       </View>
 
@@ -179,7 +213,7 @@ const MonitoringScreen: React.FC = () => {
             color="#181B56"
             style={styles.sensorIcon}
           />
-          <Text style={styles.sensorValue}>6.79</Text>
+          <Text style={styles.sensorValue}>{sensorData.pH} pH</Text>
         </View>
         <View style={styles.sensorBox}>
           <Text style={styles.sensorTitle}>Keruh Air</Text>
@@ -189,12 +223,12 @@ const MonitoringScreen: React.FC = () => {
             color="#181B56"
             style={styles.sensorIcon}
           />
-          <Text style={styles.sensorValue}>10 NTU</Text>
+          <Text style={styles.sensorValue}>{sensorData.kekeruhan} NTU</Text>
         </View>
         <View style={styles.sensorBox}>
           <Text style={styles.sensorTitle}>Suhu Air</Text>
-          <Icon name="temperature-high" size={24} color="#181B56" />
-          <Text style={styles.sensorValue}>23 °C</Text>
+          <Icon name="temperature-high" size={24} color="#181B56" style={styles.sensorIcon} />
+          <Text style={styles.sensorValue}>{sensorData.suhu} °C</Text>
         </View>
       </View>
 
@@ -332,10 +366,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sensorIcon: {
-    marginBottom: 5, // Jarak dengan nilai sensor
+    marginBottom: 10, // Jarak dengan nilai sensor
   },
   sensorValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#181B56',
     textAlign: 'center',
