@@ -64,14 +64,14 @@ const MonitoringScreen: React.FC = () => {
           break;
 
           case 'status/prosesSterilisasi':
-      const processStatus = parseInt(message, 10);
-      console.log(`Parsed processStatus: ${processStatus}`);  // Log nilai yang sudah diparse
-      if (!isNaN(processStatus)) {
-        setStatusProses(`Proses Sterilisasi: ${processStatus}`);
-      } else {
-        setStatusProses('Proses Tidak Diketahui');
-      }
-      break;
+            if (message === 'mulai') {
+              setStatusProses('Proses Sterilisasi');
+            } else if (message === 'selesai') {
+              setStatusProses('Air Siap Pakai');
+            } else {
+              setStatusProses('Menunggu Proses');
+            }
+            break;
 
         case 'status/otomasiSterilisasi':
           setOtomasiSterilisasi(message === 'true');

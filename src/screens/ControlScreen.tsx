@@ -20,10 +20,29 @@ const ControlScreen = () => {
     };
   }, []);
 
+  const resetToDefault = () => {
+    setOtomasiSterilisasi(false);
+    setOtomasiRefill(false);
+    setDurasiSterilisasi(10); // Durasi default
+    setDurasiPostUV(10); // Durasi default
+    setIsSterilisasiRunning(false);
+    setIsRefillRunning(false);
+
+    // Kirim pengaturan default ke MQTT
+    mqttClient.publish('kontrol/otomasiSterilisasi', 'false');
+    mqttClient.publish('kontrol/otomasiRefill', 'false');
+    mqttClient.publish('kontrol/durasiSterilisasi', '10');
+    mqttClient.publish('kontrol/durasiPostUV', '10');
+    mqttClient.publish('kontrol/startSterilisasi', 'false');
+    mqttClient.publish('kontrol/startRefill', 'false');
+  };
+
   const toggleSterilisasi = () => {
     if (isSterilisasiRunning) {
+      // Menghentikan sterilisasi
       mqttClient.publish('kontrol/startSterilisasi', 'false');
-      setIsSterilisasiRunning(false);
+      setIsSterilisasiRunning(false); // pastikan state diupdate setelah publish
+      resetToDefault(); // Reset pengaturan ke default
       showToast('success', 'Sterilisasi Dihentikan', 'Proses sterilisasi telah dihentikan.');
     } else {
       if (otomasiSterilisasi) {
@@ -32,7 +51,7 @@ const ControlScreen = () => {
         mqttClient.publish('kontrol/durasiSterilisasi', String(durasiSterilisasi));
         mqttClient.publish('kontrol/durasiPostUV', String(durasiPostUV));
         mqttClient.publish('kontrol/startSterilisasi', 'true');
-        setIsSterilisasiRunning(true);
+        setIsSterilisasiRunning(true); // pastikan state diupdate setelah publish
         showToast('success', 'Sterilisasi Dimulai', 'Proses sterilisasi otomatis dimulai.');
       } else {
         showToast('error', 'Peringatan', 'Harap aktifkan sterilisasi otomatis!');
@@ -102,7 +121,7 @@ const ControlScreen = () => {
           selectedValue={durasiSterilisasi}
           style={styles.customPicker}
           onValueChange={value => setDurasiSterilisasi(value)}>
-          <Picker.Item label="10 Menit" value={10} style={styles.pickerItem} />
+          <Picker.Item label="10 Menit" value={2} style={styles.pickerItem} />
           <Picker.Item label="15 Menit" value={15} style={styles.pickerItem} />
           <Picker.Item label="20 Menit" value={20} style={styles.pickerItem} />
           <Picker.Item label="30 Menit" value={30} style={styles.pickerItem} />
@@ -119,7 +138,7 @@ const ControlScreen = () => {
           selectedValue={durasiPostUV}
           style={styles.customPicker}
           onValueChange={value => setDurasiPostUV(value)}>
-          <Picker.Item label="10 Menit" value={10} style={styles.pickerItem} />
+          <Picker.Item label="10 Menit" value={2} style={styles.pickerItem} />
           <Picker.Item label="15 Menit" value={15} style={styles.pickerItem} />
           <Picker.Item label="20 Menit" value={20} style={styles.pickerItem} />
           <Picker.Item label="30 Menit" value={30} style={styles.pickerItem} />
