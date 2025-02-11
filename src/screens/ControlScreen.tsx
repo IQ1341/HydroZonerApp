@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, RefreshControl } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import mqttClient from '../services/MqttClient';
 import Toast from 'react-native-toast-message';
@@ -12,6 +12,7 @@ const ControlScreen = () => {
   const [durasiPostUV, setDurasiPostUV] = useState(10);
   const [isSterilisasiRunning, setIsSterilisasiRunning] = useState(false);
   const [isRefillRunning, setIsRefillRunning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     mqttClient.connect();
@@ -19,6 +20,15 @@ const ControlScreen = () => {
       mqttClient.disconnect();
     };
   }, []);
+
+  // Refresh handler
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    // Here you can add your MQTT or state refresh logic
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 1000); // Simulate network request and stop refreshing after 1 second
+  };
 
   const resetToDefault = () => {
     setOtomasiSterilisasi(false);
@@ -36,6 +46,12 @@ const ControlScreen = () => {
     mqttClient.publish('kontrol/startSterilisasi', 'false');
     mqttClient.publish('kontrol/startRefill', 'false');
   };
+
+  const resetRefill =()=>{
+    setIsRefillRunning(false);
+    setOtomasiRefill(false);
+    mqttClient.publish('kontrol/startRefill', 'false');
+  }
 
   const toggleSterilisasi = () => {
     if (isSterilisasiRunning) {
@@ -64,6 +80,9 @@ const ControlScreen = () => {
       mqttClient.publish('kontrol/startRefill', 'false');
       setIsRefillRunning(false);
       showToast('success', 'Refill Dihentikan', 'Proses refill telah dihentikan.');
+  
+      // Reset to default after refill is stopped
+      resetRefill();
     } else {
       if (otomasiRefill) {
         mqttClient.publish('kontrol/startRefill', 'true');
@@ -74,7 +93,7 @@ const ControlScreen = () => {
       }
     }
   };
-
+  
   type ToastType = 'success' | 'error' | 'info';
 
   const showToast = (type: ToastType, title: string, message: string): void => {
@@ -86,7 +105,10 @@ const ControlScreen = () => {
   };
 
   return (
-    <View style={styles.mainContainer}>
+    <ScrollView
+      style={styles.mainContainer}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+    >
       <TouchableOpacity style={styles.settingItem}>
         <Icon name="viruses" size={20} color="#181B56" />
         <View style={styles.settingTextContainer}>
@@ -121,7 +143,7 @@ const ControlScreen = () => {
           selectedValue={durasiSterilisasi}
           style={styles.customPicker}
           onValueChange={value => setDurasiSterilisasi(value)}>
-          <Picker.Item label="10 Menit" value={2} style={styles.pickerItem} />
+          <Picker.Item label="10 Menit" value={10} style={styles.pickerItem} />
           <Picker.Item label="15 Menit" value={15} style={styles.pickerItem} />
           <Picker.Item label="20 Menit" value={20} style={styles.pickerItem} />
           <Picker.Item label="30 Menit" value={30} style={styles.pickerItem} />
@@ -138,7 +160,7 @@ const ControlScreen = () => {
           selectedValue={durasiPostUV}
           style={styles.customPicker}
           onValueChange={value => setDurasiPostUV(value)}>
-          <Picker.Item label="10 Menit" value={2} style={styles.pickerItem} />
+          <Picker.Item label="10 Menit" value={10} style={styles.pickerItem} />
           <Picker.Item label="15 Menit" value={15} style={styles.pickerItem} />
           <Picker.Item label="20 Menit" value={20} style={styles.pickerItem} />
           <Picker.Item label="30 Menit" value={30} style={styles.pickerItem} />
@@ -166,7 +188,7 @@ const ControlScreen = () => {
           {isRefillRunning ? 'Stop Refill' : 'Mulai Refill'}
         </Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 

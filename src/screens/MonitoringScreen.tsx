@@ -1,52 +1,111 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
 import MqttClient from '../services/MqttClient';
 
-interface RelayStatus {
-  tank1: boolean;
-  tank2: boolean;
-  ozone: boolean;
-  tank3: boolean;
-}
-
 const MonitoringScreen: React.FC = () => {
-  const [relayStatus, setRelayStatus] = useState<RelayStatus>({
+  const [relayStatus, setRelayStatus] = useState({
     tank1: false,
     tank2: false,
     ozone: false,
     tank3: false,
   });
-  const [statusProses, setStatusProses] = useState<string>('Menunggu Proses');
-  const [otomasiSterilisasi, setOtomasiSterilisasi] = useState<boolean>(false);
-  const [otomasiRefill, setOtomasiRefill] = useState<boolean>(false);
-  const [durasiSterilisasi, setDurasiSterilisasi] = useState<number>(10);
-  const [durasiPostUV, setDurasiPostUV] = useState<number>(10);
-
-  // State untuk sensor
+  const [statusProses, setStatusProses] = useState('Menunggu Proses');
+  const [otomasiSterilisasi, setOtomasiSterilisasi] = useState(false);
+  // const [durasiPengisian, setDurasiPengisian] = useState(1); // Misalnya 5 menit
+  const [otomasiRefill, setOtomasiRefill] = useState(false);
+  const [durasiSterilisasi, setDurasiSterilisasi] = useState(10);
+  const [durasiPostUV, setDurasiPostUV] = useState(10);
+  const [isConnected, setIsConnected] = useState(false);
+  const totalDurasi = durasiSterilisasi + durasiPostUV;
   const [sensorData, setSensorData] = useState({
     pH: 0,
     kekeruhan: 0,
     suhu: 0,
   });
 
-  useEffect(() => {
+  
+  
+  const [progress, setProgress] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const incrementProgress = () => {
+    let elapsedTime = 0;
+    const totalTimeInSeconds = totalDurasi * 60; // Konversi menit ke detik
+  
+    const interval = setInterval(() => {
+      elapsedTime += 1;
+      const newProgress = Math.round((elapsedTime / totalTimeInSeconds) * 100);
+  
+      setProgress(newProgress);
+  
+      if (elapsedTime >= totalTimeInSeconds) {
+        clearInterval(interval); // Hentikan interval saat sudah mencapai total durasi
+        setProgress(100); // Pastikan progress tepat 100% saat selesai
+      }
+    }, 1000); // Update progress setiap detik
+  };
+  
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    // Reset all state values
+    setRelayStatus({
+      tank1: false,
+      tank2: false,
+      ozone: false,
+      tank3: false,
+    });
+    setStatusProses('Menunggu Proses');
+    setOtomasiSterilisasi(false);
+    setOtomasiRefill(false);
+    setDurasiSterilisasi(10);
+    setDurasiPostUV(10);
+    setSensorData({
+      pH: 0,
+      kekeruhan: 0,
+      suhu: 0,
+    });
+    setProgress(0);
+
+    // Reconnect MQTT
     MqttClient.connect()
       .then(() => {
-        // Subscribe ke topik MQTT
+        setIsConnected(true);
         MqttClient.client.subscribe('status/relay');
         MqttClient.client.subscribe('status/prosesSterilisasi');
         MqttClient.client.subscribe('status/otomasiSterilisasi');
         MqttClient.client.subscribe('status/otomasiRefill');
         MqttClient.client.subscribe('status/durasiSterilisasi');
         MqttClient.client.subscribe('status/durasiPostUV');
-
-        // Topik sensor
         MqttClient.client.subscribe('sensor/pH');
         MqttClient.client.subscribe('sensor/kekeruhan');
         MqttClient.client.subscribe('sensor/suhu');
       })
-      .catch((error) => {
+      .catch(error => {
+        setIsConnected(false);
+        console.error('MQTT Connection Error: ', error);
+      });
+
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    MqttClient.connect()
+      .then(() => {
+        setIsConnected(true);
+        MqttClient.client.subscribe('status/relay');
+        MqttClient.client.subscribe('status/prosesSterilisasi');
+        MqttClient.client.subscribe('status/otomasiSterilisasi');
+        MqttClient.client.subscribe('status/otomasiRefill');
+        MqttClient.client.subscribe('status/durasiSterilisasi');
+        MqttClient.client.subscribe('status/durasiPostUV');
+        MqttClient.client.subscribe('sensor/pH');
+        MqttClient.client.subscribe('sensor/kekeruhan');
+        MqttClient.client.subscribe('sensor/suhu');
+      })
+      .catch(error => {
+        setIsConnected(false);
         console.error('MQTT Connection Error: ', error);
       });
 
@@ -63,15 +122,18 @@ const MonitoringScreen: React.FC = () => {
           });
           break;
 
-          case 'status/prosesSterilisasi':
-            if (message === 'mulai') {
-              setStatusProses('Proses Sterilisasi');
-            } else if (message === 'selesai') {
-              setStatusProses('Air Siap Pakai');
-            } else {
-              setStatusProses('Menunggu Proses');
-            }
-            break;
+        case 'status/prosesSterilisasi':
+          if (message === 'mulai') {
+            setStatusProses('Proses Sterilisasi');
+            setProgress(0); // Reset progress when process starts
+            incrementProgress();
+          } else if (message === 'selesai') {
+            setStatusProses('Air Siap Pakai');
+            setProgress(100); // Set progress to 100% when process finishes
+          } else {
+            setStatusProses('Menunggu Proses');
+          }
+          break;
 
         case 'status/otomasiSterilisasi':
           setOtomasiSterilisasi(message === 'true');
@@ -90,13 +152,16 @@ const MonitoringScreen: React.FC = () => {
 
         // Data sensor
         case 'sensor/pH':
-          setSensorData((prevData) => ({ ...prevData, pH: parseFloat(message) }));
+          setSensorData(prevData => ({...prevData, pH: parseFloat(message)}));
           break;
         case 'sensor/kekeruhan':
-          setSensorData((prevData) => ({ ...prevData, kekeruhan: parseFloat(message) }));
+          setSensorData(prevData => ({
+            ...prevData,
+            kekeruhan: parseFloat(message),
+          }));
           break;
         case 'sensor/suhu':
-          setSensorData((prevData) => ({ ...prevData, suhu: parseFloat(message) }));
+          setSensorData(prevData => ({...prevData, suhu: parseFloat(message)}));
           break;
 
         default:
@@ -110,156 +175,179 @@ const MonitoringScreen: React.FC = () => {
   }, []);
 
   return (
-    <View style={styles.mainContainer}>
-      <View style={styles.container}>
-        {/* Alamat IP */}
-        <View style={styles.ipContainer}>
-          <Text style={styles.ipText}>Alamat IP Alat</Text>
-          <Text style={styles.ipAddress}>192.168.100.1:8080</Text>
-        </View>
-        <Text style={styles.percentage}>100%</Text>
-
-        {/* Tombol Relay */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
+    <ScrollView
+      style={styles.mainContainer}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }>
+      {/* <View style={styles.mainContainer}> */}
+        <View style={styles.container}>
+          {/* Alamat IP */}
+          {/* <View style={styles.containerStatus}> */}
+          <View
             style={[
-              styles.button,
-              relayStatus.tank1 ? styles.activeButton : {},
+              styles.statusContainerr,
+              {backgroundColor: isConnected ? '#4CAF50' : '#F44336'},
             ]}>
-            <Icon
-              name="glass-water-droplet"
-              size={24}
-              color={relayStatus.tank1 ? '#FFFFFF' : '#181B56'}
-            />
-            <Text
-              style={[
-                styles.buttonLabel,
-                {color: relayStatus.tank1 ? '#FFFFFF' : '#181B56'},
-              ]}>
-              Tank 1
+            <Text style={styles.statusText}>
+              {isConnected ? 'Online' : 'Offline'}
             </Text>
-          </TouchableOpacity>
+          </View>
+          {/* </View> */}
+          <View style={styles.ipContainer}>
+            <Text style={styles.ipText}>Alamat IP Alat</Text>
+            <Text style={styles.ipAddress}>192.168.1.6</Text>
+          </View>
+          <Text style={styles.percentage}>{progress}%</Text>
 
-          <TouchableOpacity
-            style={[
-              styles.button,
-              relayStatus.tank2 ? styles.activeButton : {},
-            ]}>
+          {/* Tombol Relay */}
+          <View style={styles.buttonContainer}>
+  <View
+    style={[
+      styles.button,
+      relayStatus.tank1 ? styles.activeButton : {},
+    ]}>
+    <Icon
+      name="glass-water-droplet"
+      size={24}
+      color={relayStatus.tank1 ? '#FFFFFF' : '#181B56'}
+    />
+    <Text
+      style={[
+        styles.buttonLabel,
+        {color: relayStatus.tank1 ? '#FFFFFF' : '#181B56'},
+      ]}>
+      Tank 1
+    </Text>
+  </View>
+
+  <View
+    style={[
+      styles.button,
+      relayStatus.tank2 ? styles.activeButton : {},
+    ]}>
+    <Icon
+      name="glass-water-droplet"
+      size={24}
+      color={relayStatus.tank2 ? '#FFFFFF' : '#181B56'}
+    />
+    <Text
+      style={[
+        styles.buttonLabel,
+        {color: relayStatus.tank2 ? '#FFFFFF' : '#181B56'},
+      ]}>
+      Tank 2
+    </Text>
+  </View>
+
+  <View
+    style={[
+      styles.button,
+      relayStatus.ozone ? styles.activeButton : {},
+    ]}>
+    <Icon
+      name="soap"
+      size={24}
+      color={relayStatus.ozone ? '#FFFFFF' : '#181B56'}
+    />
+    <Text
+      style={[
+        styles.buttonLabel,
+        {color: relayStatus.ozone ? '#FFFFFF' : '#181B56'},
+      ]}>
+      Ozone
+    </Text>
+  </View>
+
+  <View
+    style={[
+      styles.button,
+      relayStatus.tank3 ? styles.activeButton : {},
+    ]}>
+    <Icon
+      name="glass-water-droplet"
+      size={24}
+      color={relayStatus.tank3 ? '#FFFFFF' : '#181B56'}
+    />
+    <Text
+      style={[
+        styles.buttonLabel,
+        {color: relayStatus.tank3 ? '#FFFFFF' : '#181B56'},
+      ]}>
+      Tank 3
+    </Text>
+  </View>
+</View>
+
+
+          <View style={styles.statusContainer}>
+            <Text style={styles.status}>{statusProses}</Text>
+          </View>
+        </View>
+
+        {/* Sensor */}
+        <View style={styles.sensorContainer}>
+          <View style={styles.sensorBox}>
+            <Text style={styles.sensorTitle}>pH Air</Text>
             <Icon
-              name="glass-water-droplet"
+              name="water"
               size={24}
-              color={relayStatus.tank2 ? '#FFFFFF' : '#181B56'}
+              color="#181B56"
+              style={styles.sensorIcon}
             />
-            <Text
-              style={[
-                styles.buttonLabel,
-                {color: relayStatus.tank2 ? '#FFFFFF' : '#181B56'},
-              ]}>
-              Tank 2
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              relayStatus.ozone ? styles.activeButton : {},
-            ]}>
+            <Text style={styles.sensorValue}>{sensorData.pH} pH</Text>
+          </View>
+          <View style={styles.sensorBox}>
+            <Text style={styles.sensorTitle}>Keruh Air</Text>
             <Icon
-              name="soap"
+              name="droplet"
               size={24}
-              color={relayStatus.ozone ? '#FFFFFF' : '#181B56'}
+              color="#181B56"
+              style={styles.sensorIcon}
             />
-            <Text
-              style={[
-                styles.buttonLabel,
-                {color: relayStatus.ozone ? '#FFFFFF' : '#181B56'},
-              ]}>
-              Ozone
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              relayStatus.tank3 ? styles.activeButton : {},
-            ]}>
+            <Text style={styles.sensorValue}>{sensorData.kekeruhan} NTU</Text>
+          </View>
+          <View style={styles.sensorBox}>
+            <Text style={styles.sensorTitle}>Suhu Air</Text>
             <Icon
-              name="glass-water-droplet"
+              name="temperature-high"
               size={24}
-              color={relayStatus.tank3 ? '#FFFFFF' : '#181B56'}
+              color="#181B56"
+              style={styles.sensorIcon}
             />
-            <Text
-              style={[
-                styles.buttonLabel,
-                {color: relayStatus.tank3 ? '#FFFFFF' : '#181B56'},
-              ]}>
-              Tank 3
+            <Text style={styles.sensorValue}>{sensorData.suhu} °C</Text>
+          </View>
+        </View>
+
+        {/* Otomasi */}
+        <View style={styles.automationContainer}>
+          <View style={styles.automationBox}>
+            <Text style={styles.automationTitle}>Otomasi Sterilisasi</Text>
+            <Text style={styles.automationValue}>
+              {otomasiSterilisasi ? 'Aktif' : 'Nonaktif'}
             </Text>
-          </TouchableOpacity>
+          </View>
+          <View style={styles.automationBox}>
+            <Text style={styles.automationTitle}>Otomasi Refill</Text>
+            <Text style={styles.automationValue}>
+              {otomasiRefill ? 'Aktif' : 'Nonaktif'}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.statusContainer}>
-          <Text style={styles.status}>{statusProses}</Text>
+        {/* Durasi */}
+        <View style={styles.durationContainer}>
+          <View style={styles.durationBox}>
+            <Text style={styles.durationTitle}>Sterilisasi UV</Text>
+            <Text style={styles.durationValue}>{durasiSterilisasi} Menit</Text>
+          </View>
+          <View style={styles.durationBox}>
+            <Text style={styles.durationTitle}>Post UV</Text>
+            <Text style={styles.durationValue}>{durasiPostUV} Menit</Text>
+          </View>
         </View>
-      </View>
-
-      {/* Sensor */}
-      <View style={styles.sensorContainer}>
-        <View style={styles.sensorBox}>
-          <Text style={styles.sensorTitle}>pH Air</Text>
-          <Icon
-            name="water"
-            size={24}
-            color="#181B56"
-            style={styles.sensorIcon}
-          />
-          <Text style={styles.sensorValue}>{sensorData.pH} pH</Text>
-        </View>
-        <View style={styles.sensorBox}>
-          <Text style={styles.sensorTitle}>Keruh Air</Text>
-          <Icon
-            name="droplet"
-            size={24}
-            color="#181B56"
-            style={styles.sensorIcon}
-          />
-          <Text style={styles.sensorValue}>{sensorData.kekeruhan} NTU</Text>
-        </View>
-        <View style={styles.sensorBox}>
-          <Text style={styles.sensorTitle}>Suhu Air</Text>
-          <Icon name="temperature-high" size={24} color="#181B56" style={styles.sensorIcon} />
-          <Text style={styles.sensorValue}>{sensorData.suhu} °C</Text>
-        </View>
-      </View>
-
-      {/* Otomasi */}
-      <View style={styles.automationContainer}>
-        <View style={styles.automationBox}>
-          <Text style={styles.automationTitle}>Otomasi Sterilisasi</Text>
-          <Text style={styles.automationValue}>
-            {otomasiSterilisasi ? 'Aktif' : 'Nonaktif'}
-          </Text>
-        </View>
-        <View style={styles.automationBox}>
-          <Text style={styles.automationTitle}>Otomasi Refill</Text>
-          <Text style={styles.automationValue}>
-            {otomasiRefill ? 'Aktif' : 'Nonaktif'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Durasi */}
-      <View style={styles.durationContainer}>
-        <View style={styles.durationBox}>
-          <Text style={styles.durationTitle}>Sterilisasi UV</Text>
-          <Text style={styles.durationValue}>{durasiSterilisasi} Menit</Text>
-        </View>
-        <View style={styles.durationBox}>
-          <Text style={styles.durationTitle}>Post UV</Text>
-          <Text style={styles.durationValue}>{durasiPostUV} Menit</Text>
-        </View>
-      </View>
-    </View>
+      {/* </View> */}
+    </ScrollView>
   );
 };
 
@@ -267,16 +355,31 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    padding: 20,
+    padding: 18,
   },
   container: {
     backgroundColor: '#F9FAFC',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 20,
+    padding: 18,
     width: '98%',
-    marginBottom: 30,
+    marginBottom: 20,
   },
+  statusContainerr: {
+    paddingVertical: 8,
+    borderRadius: 20,
+    width: '18%',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  // Status text styling
+  statusText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+
+  // IP address styling
   ipContainer: {
     backgroundColor: '#FFFFFF',
     padding: 10,

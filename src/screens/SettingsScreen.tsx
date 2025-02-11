@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome5'; // Menggunakan ikon dari FontAwesome
+import Icon from 'react-native-vector-icons/FontAwesome6'; // Using FontAwesome icons
 
 const SettingsScreen: React.FC = () => {
   const [isAutomationEnabled, setIsAutomationEnabled] = useState<boolean>(false);
@@ -12,31 +12,38 @@ const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Pengaturan</Text>
+      <Text style={styles.header}>Settings</Text>
 
       {/* List Item 1 - Threshold */}
       <TouchableOpacity style={styles.settingItem}>
-        <Icon name="tint" size={20} color="#181B56" />
+        <View style={styles.iconContainer}>
+          <Icon name="wind" size={20} color="#181B56" />
+        </View>
         <View style={styles.settingTextContainer}>
           <Text style={styles.settingLabel}>Threshold Sensor</Text>
-          <Text style={styles.settingValue}>{threshold}</Text>
         </View>
         <Icon name="chevron-right" size={20} color="#181B56" />
       </TouchableOpacity>
 
-      {/* List Item 2 - Automation */}
+      {/* You can replicate the previous setting items here */}
       <TouchableOpacity style={styles.settingItem}>
-        <Icon name="cogs" size={20} color="#181B56" />
-        <View style={styles.settingTextContainer}>
-          <Text style={styles.settingLabel}>Otomasi Sterilisasi</Text>
-          <Text style={styles.settingValue}>{isAutomationEnabled ? 'Aktif' : 'Nonaktif'}</Text>
+        <View style={styles.iconContainer}>
+          <Icon name="gear" size={20} color="#181B56" />
         </View>
-        <Switch
-          value={isAutomationEnabled}
-          onValueChange={handleToggleSwitch}
-          trackColor={{ false: '#767577', true: '#181B56' }}
-          thumbColor={isAutomationEnabled ? '#FFFFFF' : '#f4f3f4'}
-        />
+        <View style={styles.settingTextContainer}>
+          <Text style={styles.settingLabel}>Kalibrasi Sensor</Text>
+        </View>
+        <Icon name="chevron-right" size={20} color="#181B56" />
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.settingItem}>
+        <View style={styles.iconContainer}>
+          <Icon name="gears" size={20} color="#181B56" />
+        </View>
+        <View style={styles.settingTextContainer}>
+          <Text style={styles.settingLabel}>LogOut</Text>
+        </View>
+        <Icon name="chevron-right" size={20} color="#181B56" />
       </TouchableOpacity>
     </View>
   );
@@ -45,7 +52,7 @@ const SettingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFC',
+    backgroundColor: '#ffffff',
     padding: 20,
   },
   header: {
@@ -59,14 +66,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
+    padding: 12,
     marginBottom: 15,
-    borderRadius: 10,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  iconContainer: {
+    backgroundColor: '#F0F0F0', // Light background color for the icon box
+    padding: 12,
+    borderRadius: 12, // Rounded box
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingTextContainer: {
     flex: 1,
