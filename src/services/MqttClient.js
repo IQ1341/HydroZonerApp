@@ -1,6 +1,7 @@
 import { Client, Message } from 'paho-mqtt';
 
-const broker = 'ws://test.mosquitto.org:8080/mqtt'; // WebSocket broker URL
+// Ganti dengan broker EMQX WebSocket URL
+const broker = 'ws://broker.emqx.io:8083/mqtt'; // WebSocket broker URL
 
 class MqttClient {
   constructor() {
@@ -33,7 +34,7 @@ class MqttClient {
         },
         userName: '',
         password: '',
-        useSSL: false,
+        useSSL: false, // WebSocket tidak perlu SSL di broker ini
       };
       this.client.connect(options);
     });
