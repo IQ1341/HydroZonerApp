@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import firestore from '@react-native-firebase/firestore';
 
-// Definisikan tipe navigasi
 type RootStackParamList = {
   MainTabs: undefined;
   Notifikasi: undefined;
@@ -12,11 +12,21 @@ type RootStackParamList = {
 type NavigationProps = StackNavigationProp<RootStackParamList, 'MainTabs'>;
 
 const Header: React.FC = () => {
-  const navigation = useNavigation<NavigationProps>(); // Gunakan tipe navigasi
+  const navigation = useNavigation<NavigationProps>();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = firestore()
+      .collection('notifications')
+      .onSnapshot(snapshot => {
+        setNotificationCount(snapshot.size); // total notifikasi
+      });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <View style={styles.container}>
-      {/* Logo & Judul Aplikasi */}
       <View style={styles.logoContainer}>
         <Image source={require('../../assets/Logo.png')} style={styles.logo} />
         <View>
@@ -25,9 +35,18 @@ const Header: React.FC = () => {
         </View>
       </View>
 
-      {/* Ikon Lonceng untuk Navigasi ke Notifikasi */}
-      <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('Notifikasi')}>
+      <TouchableOpacity
+        style={styles.menuButton}
+        onPress={() => navigation.navigate('Notifikasi')}
+      >
         <Icon name="bell" size={24} color="#0F172A" />
+        {notificationCount > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {notificationCount > 99 ? '99+' : notificationCount}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -59,6 +78,24 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 10,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    backgroundColor: 'red',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

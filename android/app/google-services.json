@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "48184672298",
+    "project_id": "hydrozooner-79322",
+    "storage_bucket": "hydrozooner-79322.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:48184672298:android:4f78f8c69d2946d3e80353",
+        "android_client_info": {
+          "package_name": "com.hydrozoner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVsR_Cuadle5s76FrC0X7PXzZSAYPgZu8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

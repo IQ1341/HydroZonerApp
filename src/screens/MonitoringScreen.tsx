@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Dimensions} from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome6';
 import MqttClient from '../services/MqttClient';
+
+const { width, height } = Dimensions.get('window');
 
 const MonitoringScreen: React.FC = () => {
   const [relayStatus, setRelayStatus] = useState({
@@ -12,44 +14,49 @@ const MonitoringScreen: React.FC = () => {
   });
   const [statusProses, setStatusProses] = useState('Menunggu Proses');
   const [otomasiSterilisasi, setOtomasiSterilisasi] = useState(false);
-  // const [durasiPengisian, setDurasiPengisian] = useState(1); // Misalnya 5 menit
   const [otomasiRefill, setOtomasiRefill] = useState(false);
   const [durasiSterilisasi, setDurasiSterilisasi] = useState(10);
   const [durasiPostUV, setDurasiPostUV] = useState(10);
-  const [isConnected, setIsConnected] = useState(false);
-  const totalDurasi = durasiSterilisasi + durasiPostUV;
   const [sensorData, setSensorData] = useState({
     pH: 0,
     kekeruhan: 0,
     suhu: 0,
   });
-
-  
-  
   const [progress, setProgress] = useState(0);
+  const [isConnected, setIsConnected] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const incrementProgress = () => {
+  let progressInterval: NodeJS.Timeout | null = null;
+
+  const startProgress = () => {
     let elapsedTime = 0;
-    const totalTimeInSeconds = totalDurasi * 60; // Konversi menit ke detik
-  
-    const interval = setInterval(() => {
+    const totalTimeInSeconds = (durasiSterilisasi + durasiPostUV) * 60;
+
+    if (progressInterval) clearInterval(progressInterval);
+
+    progressInterval = setInterval(() => {
       elapsedTime += 1;
-      const newProgress = Math.round((elapsedTime / totalTimeInSeconds) * 100);
-  
+      const newProgress = Math.min(Math.round((elapsedTime / totalTimeInSeconds) * 100), 100);
       setProgress(newProgress);
-  
+
       if (elapsedTime >= totalTimeInSeconds) {
-        clearInterval(interval); // Hentikan interval saat sudah mencapai total durasi
-        setProgress(100); // Pastikan progress tepat 100% saat selesai
+        clearInterval(progressInterval!);
+        setProgress(100);
       }
-    }, 1000); // Update progress setiap detik
+    }, 1000);
   };
-  
+
+  const stopProgress = () => {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
-    // Reset all state values
+    stopProgress();
+
     setRelayStatus({
       tank1: false,
       tank2: false,
@@ -68,19 +75,10 @@ const MonitoringScreen: React.FC = () => {
     });
     setProgress(0);
 
-    // Reconnect MQTT
     MqttClient.connect()
       .then(() => {
         setIsConnected(true);
-        MqttClient.client.subscribe('status/relay');
-        MqttClient.client.subscribe('status/prosesSterilisasi');
-        MqttClient.client.subscribe('status/otomasiSterilisasi');
-        MqttClient.client.subscribe('status/otomasiRefill');
-        MqttClient.client.subscribe('status/durasiSterilisasi');
-        MqttClient.client.subscribe('status/durasiPostUV');
-        MqttClient.client.subscribe('sensor/pH');
-        MqttClient.client.subscribe('sensor/kekeruhan');
-        MqttClient.client.subscribe('sensor/suhu');
+        subscribeTopics();
       })
       .catch(error => {
         setIsConnected(false);
@@ -90,26 +88,29 @@ const MonitoringScreen: React.FC = () => {
     setRefreshing(false);
   };
 
+  const subscribeTopics = () => {
+    MqttClient.client.subscribe('status/relay');
+    MqttClient.client.subscribe('status/prosesSterilisasi');
+    MqttClient.client.subscribe('status/otomasiSterilisasi');
+    MqttClient.client.subscribe('status/otomasiRefill');
+    MqttClient.client.subscribe('status/durasiSterilisasi');
+    MqttClient.client.subscribe('status/durasiPostUV');
+    MqttClient.client.subscribe('sensor/pH');
+    MqttClient.client.subscribe('sensor/kekeruhan');
+    MqttClient.client.subscribe('sensor/suhu');
+  };
+
   useEffect(() => {
     MqttClient.connect()
       .then(() => {
         setIsConnected(true);
-        MqttClient.client.subscribe('status/relay');
-        MqttClient.client.subscribe('status/prosesSterilisasi');
-        MqttClient.client.subscribe('status/otomasiSterilisasi');
-        MqttClient.client.subscribe('status/otomasiRefill');
-        MqttClient.client.subscribe('status/durasiSterilisasi');
-        MqttClient.client.subscribe('status/durasiPostUV');
-        MqttClient.client.subscribe('sensor/pH');
-        MqttClient.client.subscribe('sensor/kekeruhan');
-        MqttClient.client.subscribe('sensor/suhu');
+        subscribeTopics();
       })
       .catch(error => {
         setIsConnected(false);
         console.error('MQTT Connection Error: ', error);
       });
 
-    // Tangani pesan MQTT
     MqttClient.setOnMessageReceived((topic: string, message: string) => {
       switch (topic) {
         case 'status/relay':
@@ -121,55 +122,48 @@ const MonitoringScreen: React.FC = () => {
             tank3: relayState.RELAY5 || relayState.RELAY6,
           });
           break;
-
         case 'status/prosesSterilisasi':
           if (message === 'mulai') {
             setStatusProses('Proses Sterilisasi');
-            setProgress(0); // Reset progress when process starts
-            incrementProgress();
+            setProgress(0);
+            startProgress();
           } else if (message === 'selesai') {
             setStatusProses('Air Siap Pakai');
-            setProgress(100); // Set progress to 100% when process finishes
+            setProgress(100);
+            stopProgress();
           } else {
             setStatusProses('Menunggu Proses');
+            stopProgress();
           }
           break;
-
         case 'status/otomasiSterilisasi':
           setOtomasiSterilisasi(message === 'true');
           break;
         case 'status/otomasiRefill':
           setOtomasiRefill(message === 'true');
           break;
-
         case 'status/durasiSterilisasi':
           setDurasiSterilisasi(parseInt(message, 10));
           break;
-
         case 'status/durasiPostUV':
           setDurasiPostUV(parseInt(message, 10));
           break;
-
-        // Data sensor
         case 'sensor/pH':
-          setSensorData(prevData => ({...prevData, pH: parseFloat(message)}));
+          setSensorData(prev => ({ ...prev, pH: parseFloat(message) }));
           break;
         case 'sensor/kekeruhan':
-          setSensorData(prevData => ({
-            ...prevData,
-            kekeruhan: parseFloat(message),
-          }));
+          setSensorData(prev => ({ ...prev, kekeruhan: parseFloat(message) }));
           break;
         case 'sensor/suhu':
-          setSensorData(prevData => ({...prevData, suhu: parseFloat(message)}));
+          setSensorData(prev => ({ ...prev, suhu: parseFloat(message) }));
           break;
-
         default:
           break;
       }
     });
 
     return () => {
+      stopProgress();
       MqttClient.disconnect();
     };
   }, []);
